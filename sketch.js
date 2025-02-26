@@ -105,12 +105,6 @@ function setup() {
   console.log('Creating fallback image');
   createFallbackImage();
   
-  // Ensure pelosiImg is set to the fallback image
-  if (!pelosiImg) {
-    console.log('Ensuring pelosiImg is set');
-    pelosiImg = fallbackImg;
-  }
-  
   // Initialize game components
   initStars();
   initGame();
@@ -341,48 +335,56 @@ function initStars() {
 
 /** Initialize or reset the game */
 function initGame() {
-  player = { 
-    x: width / 2 - 25, 
-    y: height - 50, 
-    width: 50, 
-    height: 30,
-    health: 100,
-    shield: 0,
-    powerLevel: 1,
-    fireRate: 10,
-    // Simplified movement properties
-    speed: 5, // Player movement speed
-    direction: 'up', // Default direction the ship is facing
-    multiShot: false // Initialize multiShot property
+  // Reset game variables
+  player = {
+    x: width / 2 - 25,
+    y: height - 100,
+    width: 50,
+    height: 50,
+    speed: 5,
+    color: playerShip.color,
+    type: playerShip.type
   };
   
-  thrustParticles = [];
+  // Reset game state
   tears = [];
   flags = [];
   score = 0;
-  gameState = 'titleScreen'; // Start with title screen
+  gameState = 'titleScreen';
+  triggerPhrase = "There are only two genders.";
   phraseTimer = 0;
   isBossFight = false;
   boss = null;
   tearsSpawned = 0;
-  formationDirection = 1;
-  formationSpeed = 1;
-  formationDropTimer = 0;
-  showTriggerPhrase = false; // Initialize the flag
-  canLadiesDropTears = false; // Initialize the flag
+  levelTearsToSpawn = 20;
+  playerLives = 3;
+  isPlayerInvulnerable = false;
+  invulnerabilityTimer = 0;
+  playerScore = 0;
+  gameStarted = false;
+  showTriggerPhrase = false;
+  canLadiesDropTears = false;
   
-  // Initialize the Galaga-style formation of ladies
+  // Reset boss-related variables
+  isBossDefeated = false;
+  bossDeathPhase = 0;
+  bossRotation = 0;
+  bossScale = 1;
+  bossOpacity = 255;
+  
+  // Clear the Pelosi image to prevent it from appearing when not in boss fight
+  pelosiImg = null;
+  
+  // Initialize ladies formation
   initLadyFormation();
   
-  currentLevel = 1;
-  powerUps = [];
-  playerLives = 3;
-  
-  // Show instructions by removing game-active class from gameContainer
+  // Remove game-active class from game container when returning to title
   let gameContainer = document.getElementById('gameContainer');
   if (gameContainer) {
     gameContainer.classList.remove('game-active');
   }
+  
+  console.log('Game initialized, state set to:', gameState);
 }
 
 /** Initialize the formation of ladies for Galaga-style gameplay */
@@ -413,29 +415,20 @@ function initLadyFormation() {
 /** Main draw loop */
 function draw() {
   // Always ensure we have a valid game state
-  if (!gameState || gameState === '') {
-    console.error('Invalid game state detected, resetting to titleScreen');
+  if (!gameState) {
     gameState = 'titleScreen';
   }
+  
+  // Clear the canvas
+  background(0);
+  
+  // Draw parallax stars in the background
+  drawParallaxStars();
 
   // Force transition from loading to title screen if needed
-  if (gameState === 'loading' && frameCount > 60) {
-    console.log('Forcing transition from loading to title screen');
+  if (gameState === 'loading' && loadingComplete) {
+    console.log('Loading complete, transitioning to title screen');
     gameState = 'titleScreen';
-    
-    // Hide loading message
-    let loadingElement = document.getElementById('p5_loading');
-    if (loadingElement) {
-      loadingElement.style.display = 'none';
-    }
-  }
-
-  background(0); // Black background
-  drawParallaxStars();   // Draw animated background stars
-
-  // Debug info every 60 frames
-  if (frameCount % 60 === 0) {
-    console.log('Current game state:', gameState, 'Frame:', frameCount);
   }
 
   switch(gameState) {
@@ -1292,13 +1285,6 @@ function displayScore() {
 
 /** Initialize the boss with unique characteristics */
 function initBoss() {
-  console.log('Initializing boss for boss fight');
-  
-  // Clear any existing boss image to prevent it from showing in other states
-  if (gameState !== 'boss' && !isBossFight) {
-    pelosiImg = null;
-  }
-  
   boss = { 
     x: width / 2, 
     y: 100, 
@@ -1321,22 +1307,16 @@ function initBoss() {
     patternSet: 0 // Track current pattern set
   };
   
-  // Only create the Pelosi image if we're in the boss fight
-  if (gameState === 'boss' || isBossFight) {
-    console.log('Creating Pelosi image for boss fight');
-    // If we don't have the Pelosi image yet, use the fallback
-    if (!pelosiImg) {
-      pelosiImg = fallbackImg;
-    }
+  // If we don't have the Pelosi image yet, use the fallback
+  if (!pelosiImg) {
+    pelosiImg = fallbackImg;
   }
 }
 
 /** Draw boss with animations and effects */
 function drawBoss() {
-  // Only draw the boss if we're in the boss game state
-  if (gameState !== 'boss' && !isBossDefeated) {
-    return; // Skip drawing the boss if not in boss state
-  }
+  // Only draw the boss if we're in the boss state or during the boss death sequence
+  if (gameState !== 'boss' && !isBossDefeated) return;
   
   push();
   translate(boss.x, boss.y);
@@ -1368,7 +1348,7 @@ function drawBoss() {
     image(fallbackImg, 0, 0, boss.width, boss.height);
     noTint(); // Reset tint
   }
- 
+  
   pop();
   
   // Health bar
@@ -2027,10 +2007,8 @@ function displayPatternAnnouncement() {
 
 /** Display boss death sequence */
 function displayBossDeathSequence() {
-  // Only display the boss death sequence if we're in the boss game state
-  if (gameState !== 'boss') {
-    return; // Skip drawing the boss death sequence if not in boss state
-  }
+  // Only display the death sequence if the boss is defeated
+  if (!isBossDefeated) return;
   
   // Draw the boss with death effects
   push();
@@ -2445,16 +2423,12 @@ function loadPelosiImage() {
   isLoadingPelosiImg = true;
   console.log('Using built-in Pelosi image for boss fight');
   
-  // Only create and assign the fallback image when we're actually in the boss fight
-  if (gameState === 'boss' || gameState === 'levelStart' && isBossFight) {
-    pelosiImg = fallbackImg;
-    console.log('Built-in Pelosi image ready for use');
-  } else {
-    console.log('Not loading Pelosi image yet - not in boss fight');
-    // Don't assign pelosiImg until we're in the boss fight
-  }
-  
+  // Skip trying to load external files and use our fallback image directly
+  pelosiImg = fallbackImg;
   isLoadingPelosiImg = false;
+  console.log('Built-in Pelosi image ready for use');
+  
+  // No need for the timeout since we're using the fallback image immediately
 }
 
 /** Draw mobile touch controls */
