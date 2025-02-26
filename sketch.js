@@ -1336,17 +1336,20 @@ function drawBoss() {
     tint(255, 100, 100, 230);
   }
   
-  // Check if image is loaded and valid
-  if (pelosiImg && pelosiImg.width > 0) {
-    // Draw Pelosi image if available and loaded
-    imageMode(CENTER);
-    image(pelosiImg, 0, 0, boss.width, boss.height);
-    noTint(); // Reset tint
-  } else {
-    // Use the fallback image we created
-    imageMode(CENTER);
-    image(fallbackImg, 0, 0, boss.width, boss.height);
-    noTint(); // Reset tint
+  // In the drawBoss function, ensure the image is only drawn when necessary
+  if (gameState === 'boss' && !isMobile) {
+    // Check if image is loaded and valid
+    if (pelosiImg && pelosiImg.width > 0) {
+      // Draw Pelosi image if available and loaded
+      imageMode(CENTER);
+      image(pelosiImg, 0, 0, boss.width, boss.height);
+      noTint(); // Reset tint
+    } else {
+      // Use the fallback image we created
+      imageMode(CENTER);
+      image(fallbackImg, 0, 0, boss.width, boss.height);
+      noTint(); // Reset tint
+    }
   }
   
   pop();
